@@ -1,58 +1,72 @@
 import streamlit as st
 
-# Seitenkonfiguration für Mobile
-st.set_page_config(page_title="ROI Rechner: XTR2 vs. Solo", page_icon="🚀")
+st.set_page_config(page_title="Fair-Vergleich: Solo vs. XTR2", page_icon="⚖️")
 
-st.title("📊 Profit-Check: XTR2")
-st.markdown("Vergleich: **Solo 330/461** vs. **Testifire XTR2**")
+st.title("⚖️ Der 'Äpfel mit Äpfeln' Vergleich")
+st.markdown("Unterscheidung zwischen **reiner Testzeit** und **Test + Doku**.")
 
-# --- Sidebar / Eingaben ---
-st.header("Eingabewerte")
+# --- Sidebar Eingaben ---
+st.sidebar.header("⚙️ Parameter")
+anzahl_melder = st.sidebar.number_input("Melder pro Jahr", value=2000, step=100)
+stundensatz = st.sidebar.number_input("Techniker-Stundensatz (€)", value=65)
+kombi_anteil = st.sidebar.slider("Anteil Kombimelder (%)", 0, 100, 30)
 
+st.sidebar.divider()
+st.sidebar.subheader("Solo Parameter")
+zeit_solo_test = st.sidebar.number_input("Nur Testzeit (Min/Melder)", value=3.0, help="Reine Zeit an der Leiter")
+zeit_solo_doku = st.sidebar.number_input("Zusatzzeit Doku (Min/Melder)", value=2.5, help="Excel tippen, Listen abgleichen")
+
+# --- Logik ---
+# XTR2 Fixwerte
+zeit_xtr_test = 2.5  # Inkl. Hitze-Automatik
+zeit_xtr_doku = 0.2  # Nur App-Bestätigung/Synchronisation
+invest_diff = 1500
+cloud_jahr = 282
+
+# Kosten-Berechnung Solo
+# Norm-Zuschlag für Hitze beim Solo (ca. 3 Min extra pro Kombimelder)
+extra_zeit_hitze_solo = (anzahl_melder * (kombi_anteil/100) * 3) / 60
+
+stunden_solo_rein = (anzahl_melder * zeit_solo_test / 60) + extra_zeit_hitze_solo
+stunden_solo_doku = (anzahl_melder * zeit_solo_doku / 60)
+
+kosten_solo_rein = stunden_solo_rein * stundensatz + (anzahl_melder/150 * 17)
+kosten_solo_mit_doku = (stunden_solo_rein + stunden_solo_doku) * stundensatz + (anzahl_melder/150 * 17)
+
+# Kosten-Berechnung XTR2
+stunden_xtr_rein = (anzahl_melder * zeit_xtr_test / 60)
+stunden_xtr_doku = (anzahl_melder * zeit_xtr_doku / 60)
+
+kosten_xtr_rein = stunden_xtr_rein * stundensatz + (anzahl_melder/600 * 42) + cloud_jahr
+kosten_xtr_mit_doku = (stunden_xtr_rein + stunden_xtr_doku) * stundensatz + (anzahl_melder/600 * 42) + cloud_jahr
+
+# --- Darstellung ---
 col1, col2 = st.columns(2)
 
 with col1:
-    anzahl_melder = st.number_input("Melder pro Jahr", value=2000, step=100)
-    stundensatz = st.number_input("Stundensatz Techniker (€)", value=65)
-    kombi_anteil = st.slider("Anteil Kombimelder (%)", 0, 100, 30)
+    st.subheader("1. Reine Prüfzeit")
+    st.write("*(An der Leiter, ohne Büro)*")
+    diff_rein = kosten_solo_rein - kosten_xtr_rein
+    st.metric("Ersparnis", f"{diff_rein:,.2f} €", delta=f"{diff_rein/anzahl_melder:.2f} €/Melder")
 
 with col2:
-    preis_solo = st.number_input("Preis Solo Aerosol (€)", value=17.0)
-    zeit_solo_basis = st.number_input("Zeit Solo (Min/Melder)", value=5.5, step=0.5)
-    invest_diff = st.number_input("Mehrpreis XTR2 Set (€)", value=1500)
+    st.subheader("2. Gesamtprozess")
+    st.write("*(Inkl. Excel/Protokoll)*")
+    diff_doku = kosten_solo_mit_doku - kosten_xtr_mit_doku
+    st.metric("Ersparnis", f"{diff_doku:,.2f} €", delta=f"{diff_doku/anzahl_melder:.2f} €/Melder", delta_color="normal")
 
-# --- Logik ---
-# Solo Kalkulation
-anzahl_kombi = anzahl_melder * (kombi_anteil / 100)
-anzahl_standard = anzahl_melder - anzahl_kombi
-
-# Zeit: Standard + 3 Min extra für Hitze bei Kombimeldern (Normgerecht)
-zeit_gesamt_solo = (anzahl_standard * zeit_solo_basis) + (anzahl_kombi * (zeit_solo_basis + 3))
-material_solo = (anzahl_melder / 150) * preis_solo
-kosten_solo = material_solo + (zeit_gesamt_solo / 60) * stundensatz
-
-# XTR2 Kalkulation
-zeit_xtr = 2.5 # Konstant wegen Auto-Test & Digital-Protokoll
-material_xtr = (anzahl_melder / 600) * 42.0
-cloud_jahr = 282.0
-kosten_xtr = material_xtr + (anzahl_melder * zeit_xtr / 60) * stundensatz + cloud_jahr
-
-ersparnis = kosten_solo - kosten_xtr
-ersparnis_pro_melder = ersparnis / anzahl_melder if anzahl_melder > 0 else 0
-
-# --- Ausgabe ---
 st.divider()
 
-if ersparnis > 0:
-    st.success(f"### Jährliche Ersparnis: {ersparnis:,.2f} €")
-    
-    amort_melder = int(invest_diff / ersparnis_pro_melder) if ersparnis_pro_melder > 0 else 0
-    st.info(f"**Amortisation:** Das Gerät hat sich nach ca. **{amort_melder} Meldern** bezahlt gemacht.")
-else:
-    st.error("Bei diesen Werten ist das Solo-System günstiger.")
+# ROI Visualisierung
+st.write("### Wann lohnt sich der Wechsel?")
+option = st.radio("Berechnungsgrundlage für Amortisation:", ("Reine Prüfzeit", "Gesamtprozess"))
 
-# --- Detail-Vergleich ---
-with st.expander("Details anzeigen"):
-    st.write(f"**Kosten Solo System:** {kosten_solo:,.2f} €")
-    st.write(f"**Kosten XTR2 System:** {kosten_xtr:,.2f} €")
-    st.caption("Basis: XTR2 mit 42€/Kapsel (600 Tests) und 2.5 Min Zeitaufwand inkl. Dokumentation.")
+aktuelle_ersparnis = diff_rein if option == "Reine Prüfzeit" else diff_doku
+
+if aktuelle_ersparnis > 0:
+    amort_melder = int(invest_diff / (aktuelle_ersparnis / anzahl_melder))
+    st.success(f"**Ergebnis:** Bei Fokus auf '{option}' amortisiert sich der XTR2 nach **{amort_melder} Meldern**.")
+else:
+    st.warning("In diesem Szenario ist der XTR2 teurer als das Solo-System.")
+
+st.caption("Hinweis: Beim Solo-System wird bei Kombimeldern ein Zeitaufschlag für den normgerechten Hitzetest (Gerätewechsel) berechnet.")
